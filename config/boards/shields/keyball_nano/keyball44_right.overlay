@@ -68,7 +68,7 @@
 
 / {
     chosen {
-        zmk,underglow = &underglow;
+        zmk,underglow = &undeglow;
     };
 };
 
