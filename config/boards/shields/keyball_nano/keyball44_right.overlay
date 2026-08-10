@@ -77,11 +77,12 @@
         compatible = "zmk,underglow";
         label = "UNDGLOW";
 
-        // TODO: Set this to the actual number of underglow LEDs on your Keyball44.
-        chain-length = <1>;
+        // Keyball44 has 60 RGB LEDs total, split 30/30.
+        // Use 30 for this half.
+        chain-length = <30>;
 
-        // TODO: Set this to the actual ProMicro pin for the LED data line.
-        // Pin 3 is a placeholder; change "3" to the correct pin number once known.
+        // RGB LED data pin is D3 (WS2812_DI_PIN = D3).
+        // On ProMicro/nice!nano this is pin number 3.
         color-format = "grb";
         gpio = <&pro_micro 3 GPIO_ACTIVE_HIGH>;
     };
