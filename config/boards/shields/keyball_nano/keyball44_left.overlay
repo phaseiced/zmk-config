@@ -7,12 +7,33 @@
 #include "keyball44.dtsi"
 
 &kscan0 {
-	col-gpios
-		= <&pro_micro 4 GPIO_ACTIVE_HIGH>
-		, <&pro_micro 5 GPIO_ACTIVE_HIGH>
-		, <&pro_micro 6 GPIO_ACTIVE_HIGH>
-		, <&pro_micro 7 GPIO_ACTIVE_HIGH>
-		, <&pro_micro 8 GPIO_ACTIVE_HIGH>
-		, <&pro_micro 9 GPIO_ACTIVE_HIGH>
-		;
+    col-gpios =
+        <&pro_micro 4 GPIO_ACTIVE_HIGH>,
+        <&pro_micro 5 GPIO_ACTIVE_HIGH>,
+        <&pro_micro 6 GPIO_ACTIVE_HIGH>,
+        <&pro_micro 7 GPIO_ACTIVE_HIGH>,
+        <&pro_micro 8 GPIO_ACTIVE_HIGH>,
+        <&pro_micro 9 GPIO_ACTIVE_HIGH>;
+};
+
+/ {
+    chosen {
+        zmk,underglow = &underglow;
+    };
+};
+
+&pro_micro {
+    undeglow: underglow {
+        compatible = "zmk,underglow";
+        label = "UNDGLOW";
+
+        // Keyball44 has 60 RGB LEDs total, split 30/30.
+        // Use 30 for this half.
+        chain-length = <30>;
+
+        // RGB LED data pin is D3 (WS2812_DI_PIN = D3).
+        // On ProMicro/nice!nano this is pin number 3.
+        color-format = "grb";
+        gpio = <&pro_micro 3 GPIO_ACTIVE_HIGH>;
+    };
 };
