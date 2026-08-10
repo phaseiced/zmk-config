@@ -1,0 +1,12 @@
+# Local west / Zephyr workspace (do not commit)
+.west/
+build/
+modules/
+zephyr/
+zmk/
+zmk-pmw3610-driver/
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+*.uf2
