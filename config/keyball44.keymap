@@ -7,10 +7,12 @@
 #define SNIPE   6
 
 #include <behaviors/mouse_keys.dtsi>
+#include <dt-bindings/zmk/mouse.h>
 #include <behaviors.dtsi>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/keys.h>
-#include <dt-bindings/zmk/mouse.h>
+#include <dt-bindings/zmk/pointing.h>
+#include <dt-bindings/zmk/rgb.h>
 
 &lt {
     tapping-term-ms = <240>;
@@ -46,6 +48,17 @@
             bindings = <&kp DOT>, <&kp SEMI>;
 
             mods = <(MOD_LSFT|MOD_RSFT)>;
+        };
+
+        new_behavior: new_behavior {
+            compatible = "zmk,behavior-hold-tap";
+            label = "NEW_BEHAVIOR";
+            bindings = <&none>, <&rgb_ug>;
+
+            #binding-cells = <2>;
+            hold-trigger-key-positions = <0>;
+            tapping-term-ms = <1>;
+            flavor = "tap-preferred";
         };
     };
 
