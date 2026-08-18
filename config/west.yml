@@ -2,15 +2,16 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: KOHSUK
-      url-base: https://github.com/KOHSUK
+    - name: george-norton
+      url-base: https://github.com/george-norton
   projects:
     - name: zmk
       remote: zmkfirmware
       revision: v0.3
       import: app/west.yml
-    - name: zmk-pmw3360-driver
-      remote: KOHSUK
-      revision: pmw3360
+    # Polling-capable PMW3360 driver (stock Keyball has no MOTION IRQ pin).
+    - name: zmk-driver-pmw3360
+      remote: george-norton
+      revision: main
   self:
     path: config
