@@ -94,8 +94,16 @@ config PMW3360_FORCE_AWAKE
 	bool "Keep PMW3360 out of REST modes (recommended for Keyball)"
 	default y
 	help
-	  Writes Config2=0x00 after SROM load, matching QMK Keyball.
+	  Writes Config2=0x00 after init, matching QMK Keyball.
 	  Disable only if you want wireless REST power saving on a mouse.
+
+config PMW3360_UPLOAD_SROM
+	bool "Upload PMW3360 SROM firmware at boot"
+	default n
+	help
+	  QMK Keyball leaves SROM optional. Skip by default — a failed/partial
+	  SROM upload can leave the sensor dead until power-cycle. Enable only
+	  after basic polling motion works.
 
 module = PMW3360
 module-str = PMW3360

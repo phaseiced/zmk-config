@@ -64,22 +64,17 @@ static int (*const async_init_fn[ASYNC_INIT_STEP_COUNT])(const struct device *de
 
 static int spi_cs_ctrl(const struct device *dev, bool enable) {
     const struct pixart_config *config = dev->config;
-    int err;
-
-    if (!enable) {
-        k_busy_wait(T_NCS_SCLK);
-    }
-
-    err = gpio_pin_set_dt(&config->cs_gpio, (int)enable);
-    if (err) {
-        LOG_ERR("SPI CS ctrl failed");
-    }
 
     if (enable) {
-        k_busy_wait(T_NCS_SCLK);
+        /* SPI_HOLD_ON_CS: first spi_write/read asserts NCS via spi_dt_spec. */
+        return 0;
     }
 
-//    LOG_INF("finished spi_cs_ctrl");
+    k_busy_wait(T_NCS_SCLK);
+    int err = spi_release_dt(&config->bus);
+    if (err) {
+        LOG_ERR("SPI release failed");
+    }
     return err;
 }
 
@@ -102,6 +97,7 @@ static int reg_read(const struct device *dev, uint8_t reg, uint8_t *buf) {
     err = spi_write_dt(&config->bus, &tx);
     if (err) {
         LOG_ERR("Reg read failed on SPI write");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -120,6 +116,7 @@ static int reg_read(const struct device *dev, uint8_t reg, uint8_t *buf) {
     err = spi_read_dt(&config->bus, &rx);
     if (err) {
         LOG_ERR("Reg read failed on SPI read");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -154,6 +151,7 @@ static int reg_write(const struct device *dev, uint8_t reg, uint8_t val) {
     err = spi_write_dt(&config->bus, &tx);
     if (err) {
         LOG_ERR("Reg write failed on SPI write");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -203,6 +201,7 @@ static int motion_burst_read(const struct device *dev, uint8_t *buf, size_t burs
     err = spi_write_dt(&config->bus, &tx);
     if (err) {
         LOG_ERR("Motion burst failed on SPI write");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -217,6 +216,7 @@ static int motion_burst_read(const struct device *dev, uint8_t *buf, size_t burs
     err = spi_read_dt(&config->bus, &rx);
     if (err) {
         LOG_ERR("Motion burst failed on SPI read");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -252,6 +252,7 @@ static int burst_write(const struct device *dev, uint8_t reg, const uint8_t *buf
     err = spi_write_dt(&config->bus, &tx);
     if (err) {
         LOG_ERR("Burst write failed on SPI write");
+        spi_cs_ctrl(dev, false);
         return err;
     }
 
@@ -262,6 +263,7 @@ static int burst_write(const struct device *dev, uint8_t reg, const uint8_t *buf
         err = spi_write_dt(&config->bus, &tx);
         if (err) {
             LOG_ERR("Burst write failed on SPI write (data)");
+            spi_cs_ctrl(dev, false);
             return err;
         }
 
@@ -496,8 +498,9 @@ static int pmw3360_async_init_fw_load_verify(const struct device *dev) {
 
     LOG_DBG("Optical chip firmware ID: 0x%x", fw_id);
     if (fw_id != PMW3360_FIRMWARE_ID) {
-        LOG_ERR("Chip is not running from SROM!");
-        return -EIO;
+        /* QMK Keyball leaves SROM optional — still usable without it (CPI capped). */
+        LOG_WRN("SROM ID 0x%02x (expected 0x%02x); continuing without SROM", fw_id,
+                PMW3360_FIRMWARE_ID);
     }
 
     uint8_t product_id;
@@ -507,9 +510,10 @@ static int pmw3360_async_init_fw_load_verify(const struct device *dev) {
         return err;
     }
 
+    LOG_INF("PMW3360 product id: 0x%02x", product_id);
     if (product_id != PMW3360_PRODUCT_ID) {
-        LOG_ERR("Invalid product id!");
-        return -EIO;
+        LOG_WRN("Unexpected product id 0x%02x (expected 0x%02x); continuing", product_id,
+                PMW3360_PRODUCT_ID);
     }
 
     /* Keyball / trackball: keep REST disabled (same as QMK Keyball Config2=0x00).
@@ -642,8 +646,14 @@ static int pmw3360_report_data(const struct device *dev) {
 //    int16_t raw_y =
 //        TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12) / dividor;
 
-    int16_t raw_x = ((int16_t)sys_get_le16(&buf[PMW3360_DX_POS])) / dividor;
-    int16_t raw_y = ((int16_t)sys_get_le16(&buf[PMW3360_DY_POS])) / dividor;
+    int16_t raw_x = (int16_t)sys_get_le16(&buf[PMW3360_DX_POS]);
+    int16_t raw_y = (int16_t)sys_get_le16(&buf[PMW3360_DY_POS]);
+
+    if (dividor > 1) {
+        raw_x /= dividor;
+        raw_y /= dividor;
+    }
+
     int16_t x;
     int16_t y;
 
@@ -659,6 +669,9 @@ static int pmw3360_report_data(const struct device *dev) {
     } else if (IS_ENABLED(CONFIG_PMW3360_ORIENTATION_270)) {
         x = -raw_y;
         y = raw_x;
+    } else {
+        x = raw_x;
+        y = raw_y;
     }
 
     if (IS_ENABLED(CONFIG_PMW3360_INVERT_X)) {
@@ -667,6 +680,12 @@ static int pmw3360_report_data(const struct device *dev) {
 
     if (IS_ENABLED(CONFIG_PMW3360_INVERT_Y)) {
         y = -y;
+    }
+
+    /* Sparse debug: prove SPI/burst path is alive while hunting zero-motion. */
+    static uint32_t report_count;
+    if ((++report_count % 500) == 0) {
+        LOG_INF("burst mot=0x%02x dx=%d dy=%d -> x=%d y=%d", buf[0], raw_x, raw_y, x, y);
     }
 
 //#ifdef CONFIG_PMW3610_SMART_ALGORITHM
@@ -795,8 +814,22 @@ static void pmw3360_poll_callback(struct k_work *work) {
 //}
 
 static int pmw3360_async_init_power_up(const struct device *dev) {
-    /* Reset sensor */
+    const struct pixart_config *config = dev->config;
+    int err;
+
     LOG_INF("async_init_power_up");
+
+    /* Datasheet / george-norton: toggle NCS to reset the SPI port first. */
+    err = gpio_pin_set_dt(&config->cs_gpio, 1);
+    if (err) {
+        return err;
+    }
+    k_msleep(40);
+    err = gpio_pin_set_dt(&config->cs_gpio, 0);
+    if (err) {
+        return err;
+    }
+    k_busy_wait(T_NCS_SCLK);
 
     return reg_write(dev, PMW3360_REG_POWER_UP_RESET, PMW3360_POWERUP_CMD_RESET);
 }
@@ -805,38 +838,86 @@ static int pmw3360_async_init_configure(const struct device *dev) {
     LOG_INF("pmw3360_async_init_configure");
     int err;
 
+#if IS_ENABLED(CONFIG_PMW3360_FORCE_AWAKE)
+    err = reg_write(dev, PMW3360_REG_CONFIG2, 0x00);
+#else
+    err = reg_write(dev, PMW3360_REG_CONFIG2, 0x20);
+#endif
+    if (err) {
+        LOG_ERR("Cannot set Config2");
+        return err;
+    }
+
     err = set_cpi(dev, CONFIG_PMW3360_CPI);
-
-    if (!err) {
-        err = set_downshift_time(dev, PMW3360_REG_RUN_DOWNSHIFT,
-                                 CONFIG_PMW3360_RUN_DOWNSHIFT_TIME_MS);
+    if (err) {
+        return err;
     }
 
-    if (!err) {
-        err = set_downshift_time(dev, PMW3360_REG_REST1_DOWNSHIFT,
-                                 CONFIG_PMW3360_REST1_DOWNSHIFT_TIME_MS);
-    }
+    /* Downshift timings are optional; don't block motion if they fail. */
+    (void)set_downshift_time(dev, PMW3360_REG_RUN_DOWNSHIFT,
+                             CONFIG_PMW3360_RUN_DOWNSHIFT_TIME_MS);
+    (void)set_downshift_time(dev, PMW3360_REG_REST1_DOWNSHIFT,
+                             CONFIG_PMW3360_REST1_DOWNSHIFT_TIME_MS);
+    (void)set_downshift_time(dev, PMW3360_REG_REST2_DOWNSHIFT,
+                             CONFIG_PMW3360_REST2_DOWNSHIFT_TIME_MS);
 
-    if (!err) {
-        err = set_downshift_time(dev, PMW3360_REG_REST2_DOWNSHIFT,
-                                 CONFIG_PMW3360_REST2_DOWNSHIFT_TIME_MS);
-    }
-
-    return err;
+    return 0;
 }
 
 static void pmw3360_async_init(struct k_work *work) {
-    LOG_INF("pmw3360_async_init");
-    struct k_work_delayable *work2 = (struct k_work_delayable *)work;
-    struct pixart_data *data = CONTAINER_OF(work2, struct pixart_data, init_work);
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct pixart_data *data = CONTAINER_OF(dwork, struct pixart_data, init_work);
     const struct device *dev = data->dev;
 
     LOG_INF("async init step %d", data->async_init_step);
 
+#if !IS_ENABLED(CONFIG_PMW3360_UPLOAD_SROM)
+    /* Skip SROM start/continue/verify — go power-up → clear+force-awake → configure. */
+    if (data->async_init_step == ASYNC_INIT_STEP_FW_LOAD_START) {
+        int err = 0;
+        for (uint8_t reg = 0x02; (reg <= 0x06) && !err; reg++) {
+            uint8_t buf[1];
+            err = reg_read(dev, reg, buf);
+        }
+        if (err) {
+            LOG_ERR("Cannot read motion registers after reset (%d)", err);
+            data->err = err;
+            return;
+        }
+#if IS_ENABLED(CONFIG_PMW3360_FORCE_AWAKE)
+        err = reg_write(dev, PMW3360_REG_CONFIG2, 0x00);
+#else
+        err = reg_write(dev, PMW3360_REG_CONFIG2, 0x20);
+#endif
+        if (err) {
+            LOG_ERR("Cannot set Config2 (%d)", err);
+            data->err = err;
+            return;
+        }
+
+        uint8_t product_id = 0;
+        err = reg_read(dev, PMW3360_REG_PRODUCT_ID, &product_id);
+        LOG_INF("PMW3360 product id: 0x%02x (err=%d)", product_id, err);
+
+        data->async_init_step = ASYNC_INIT_STEP_CONFIGURE;
+        k_work_schedule(&data->init_work, K_MSEC(async_init_delay[data->async_init_step]));
+        return;
+    }
+#endif
+
     data->err = async_init_fn[data->async_init_step](dev);
     if (data->err) {
-        LOG_ERR("initialization failed");
-    } else {
+        /* SROM upload is best-effort on Keyball (QMK also treats it as optional). */
+        if (data->async_init_step == ASYNC_INIT_STEP_FW_LOAD_START ||
+            data->async_init_step == ASYNC_INIT_STEP_FW_LOAD_CONTINUE ||
+            data->async_init_step == ASYNC_INIT_STEP_FW_LOAD_VERIFY) {
+            LOG_WRN("SROM step %d failed (%d); continuing", data->async_init_step, data->err);
+            data->err = 0;
+        } else {
+            LOG_ERR("initialization failed at step %d", data->async_init_step);
+        }
+    }
+    if (!data->err) {
         data->async_init_step++;
 
         if (data->async_init_step == ASYNC_INIT_STEP_COUNT) {
@@ -1111,23 +1192,17 @@ static int pmw3360_init(const struct device *dev) {
 //    return err;
 //}
 
+#define PMW3360_SPI_MODE                                                                           \
+    (SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPOL | SPI_MODE_CPHA |    \
+     SPI_HOLD_ON_CS | SPI_LOCK_ON)
+
 #define PMW3360_DEFINE(n)                                                                          \
     static struct pixart_data data##n;                                                             \
     static int32_t scroll_layers##n[] = DT_PROP(DT_DRV_INST(n), scroll_layers);                    \
     static int32_t snipe_layers##n[] = DT_PROP(DT_DRV_INST(n), snipe_layers);                      \
     static const struct pixart_config config##n = {                                                \
         .irq_gpio = GPIO_DT_SPEC_INST_GET_OR(n, irq_gpios, {0}),                                   \
-        .bus =                                                                                     \
-            {                                                                                      \
-                .bus = DEVICE_DT_GET(DT_INST_BUS(n)),                                              \
-                .config =                                                                          \
-                    {                                                                              \
-                        .frequency = DT_INST_PROP(n, spi_max_frequency),                           \
-                        .operation =                                                               \
-                            SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPOL | SPI_MODE_CPHA,    \
-                        .slave = DT_INST_REG_ADDR(n),                                              \
-                    },                                                                             \
-            },                                                                                     \
+        .bus = SPI_DT_SPEC_INST_GET(n, PMW3360_SPI_MODE, 0),                                       \
         .cs_gpio = SPI_CS_GPIOS_DT_SPEC_GET(DT_DRV_INST(n)),                                       \
         .polling_interval_us = DT_INST_PROP(n, polling_interval_us),                             \
         .scroll_layers = scroll_layers##n,                                                         \
