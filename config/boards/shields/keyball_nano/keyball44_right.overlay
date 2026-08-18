@@ -84,10 +84,15 @@
         compatible = "pixart,pmw3360";
         reg = <0>;
         spi-max-frequency = <2000000>;
-        /* No irq-gpios → george-norton driver polls (Keyball has no MOTION pin). */
-        cpi = <1200>;
-        rotate-180;
+        /*
+         * Poll mode (no MOTION pin on stock Keyball J2).
+         * Do not set rotate-* here: george-norton's CONTROL values are not
+         * PixArt INV_X/INV_Y bits and can break axis tracking (e.g. only +Y).
+         * Match QMK Keyball: no CONTROL rotation; tune with invert-* if needed.
+         */
+        cpi = <800>;
         polling-interval = <1000>;
+        lift-height-3mm;
     };
 };
 
