@@ -1,0 +1,26 @@
+description: |
+  PixArt PMW3360 mouse/trackball sensor (SROM upload).
+  irq-gpios is optional — omit it to poll (Keyball has no MOTION on J2).
+
+compatible: "pixart,pmw3360"
+
+include: spi-device.yaml
+
+properties:
+  irq-gpios:
+    type: phandle-array
+    required: false
+    description: Optional MOTION interrupt. If omitted, the driver polls.
+  polling-interval-us:
+    type: int
+    default: 1000
+    description: Poll period in microseconds when irq-gpios is not set.
+  scroll-layers:
+    type: array
+    default: []
+  snipe-layers:
+    type: array
+    default: []
+  automouse-layer:
+    type: int
+    default: -1

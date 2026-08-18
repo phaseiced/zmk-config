@@ -2,6 +2,9 @@
 .west/
 build/
 modules/
+# Keep the vendored Keyball PMW3360 driver (SROM + poll)
+!modules/zmk-pmw3360-keyball/
+!modules/zmk-pmw3360-keyball/**
 zephyr/
 zmk/
 zmk-pmw3610-driver/

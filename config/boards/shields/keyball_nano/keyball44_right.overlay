@@ -85,14 +85,13 @@
         reg = <0>;
         spi-max-frequency = <2000000>;
         /*
-         * Poll mode (no MOTION pin on stock Keyball J2).
-         * Do not set rotate-* here: george-norton's CONTROL values are not
-         * PixArt INV_X/INV_Y bits and can break axis tracking (e.g. only +Y).
-         * Match QMK Keyball: no CONTROL rotation; tune with invert-* if needed.
+         * No irq-gpios: stock Keyball J2 has no MOTION pin.
+         * Vendored driver uploads SROM then polls.
          */
-        cpi = <800>;
-        polling-interval = <1000>;
-        lift-height-3mm;
+        polling-interval-us = <1000>;
+        automouse-layer = <4>;
+        scroll-layers = <5>;
+        snipe-layers = <6>;
     };
 };
 
