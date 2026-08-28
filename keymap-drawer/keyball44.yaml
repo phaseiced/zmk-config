@@ -2,22 +2,22 @@ layout: {zmk_keyboard: keyball44}
 layers:
   QWRT:
   - $$mdi:keyboard-esc$$
-  - Q
-  - W
-  - E
-  - R
-  - T
+  - B
+  - L
+  - D
+  - C
+  - V
   - Y
   - U
   - I
   - O
   - P
   - {t: '$$mdi:backspace$$', type: backspace}
-  - $$mdi:apple-keyboard-control$$
-  - A
+  - {t: '$$mdi:keyboard-tab$$', h: '$$mdi:apple-keyboard-control$$'}
+  - N
+  - R
+  - T
   - S
-  - D
-  - F
   - G
   - H
   - J
@@ -25,19 +25,19 @@ layers:
   - L
   - {t: ;, s: ':'}
   - {t: '''', s: '"'}
-  - $$mdi:apple-keyboard-shift$$
-  - Z
+  - {t: '$$mdi:apple-keyboard-caps$$', h: '$$mdi:apple-keyboard-shift$$'}
   - X
-  - C
-  - V
-  - B
+  - Q
+  - M
+  - W
+  - Z
   - N
   - M
   - {t: ',', s: <}
   - {t: ., s: '>'}
   - {t: /, s: '?'}
   - $$mdi:apple-keyboard-shift$$
-  - LGUI
+  - $$mdi:apple-keyboard-option$$
   - $$mdi:apple-keyboard-option$$
   - {t: '$$mdi:keyboard-esc$$', h: SNIPE}
   - {t: '$$mdi:keyboard-space$$', h: MOUSE}
@@ -315,3 +315,8 @@ layers:
   - {t: '$$mdi:transfer$$', type: trans}
   - {t: '$$mdi:transfer$$', type: trans}
   - {t: '$$mdi:transfer$$', type: trans}
+combos:
+- p: [3, 4]
+  k: COPY
+- p: [4, 5]
+  k: PASTE
